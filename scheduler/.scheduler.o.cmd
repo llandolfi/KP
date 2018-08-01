@@ -1,0 +1,1 @@
+cmd_/home/giacomo/kernel_programming/scheduler/scheduler.o := ld -m elf_x86_64 -z max-page-size=0x200000   -r -o /home/giacomo/kernel_programming/scheduler/scheduler.o /home/giacomo/kernel_programming/scheduler/ex_module.o /home/giacomo/kernel_programming/scheduler/ex_dev.o /home/giacomo/kernel_programming/scheduler/ex_thread.o 

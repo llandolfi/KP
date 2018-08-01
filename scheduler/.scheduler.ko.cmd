@@ -1,0 +1,1 @@
+cmd_/home/giacomo/kernel_programming/scheduler/scheduler.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/giacomo/kernel_programming/scheduler/scheduler.ko /home/giacomo/kernel_programming/scheduler/scheduler.o /home/giacomo/kernel_programming/scheduler/scheduler.mod.o ;  true

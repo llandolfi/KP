@@ -28,8 +28,6 @@ static int turn = -1;
 
 static char buff[1024];
 
-int thread_num = 3;
-
 
 static int output_thread(void *arg)
 {
@@ -43,22 +41,32 @@ static int output_thread(void *arg)
 
   if (allready == thread_num)
   {
+    printk("I am thread %d and I am the last thread, I am waking up all!\n", my_id);
     wake_up_interruptible_all(&threads_waitqueue);
   }
   else
   {
+    printk("I am thread %d... I wait for all to be ready...\n", my_id);
     wait_event_interruptible(threads_waitqueue, (allready == thread_num));
   }
 
+  printk("Thread %d waiting for the scheduler to be ready...\n", my_id);
   wait_event_interruptible(sched_waitqueue, (sched_ready == true));
+  printk("Thread %d starting main body\n", my_id);
 
   while (!kthread_should_stop()) {
     wait_event_interruptible(threads_waitqueue, (turn == my_id));
+
+    #ifdef MYDEBUG
+      printk("Thread %d is executing\n", my_id);
+    #endif
+
+
     mutex_lock(&buff_m);
     sprintf(buff, "Thread %d is executing\n", my_id);
     mutex_unlock(&buff_m);
     complete(&available_data);
-    msleep(500);
+    msleep(1000);
   }
 
 
@@ -67,16 +75,23 @@ static int output_thread(void *arg)
 
 static int scheduler_thread(void* arg)
 {
-
+  printk("Scheduler started! Waiting for the other threads\n");
   wait_event_interruptible(threads_waitqueue, (allready == thread_num));
+
+  printk("waking up all the threads?\n");
+
+  mutex_lock(&ready_mutex);
+  sched_ready = true;
+  mutex_unlock(&ready_mutex);
 
   wake_up_interruptible_all(&sched_waitqueue);
 
+  printk("Scheduler starting main body\n");
   while(!kthread_should_stop())
   {
     turn = (turn + 1) % thread_num;
     wake_up_interruptible_all(&threads_waitqueue);
-    msleep(2000);
+    msleep(3000);
   }
 
   return 0;
@@ -91,14 +106,15 @@ int scheduler_create(int thread_num, double period)
   mutex_init(&buff_m);
   mutex_init(&ready_mutex);
   init_completion(&available_data);
+
   init_waitqueue_head(&sched_waitqueue);
   init_waitqueue_head(&threads_waitqueue);
 
   sched_id = kthread_run(scheduler_thread, NULL, "sched_thread");
-  if (IS_ERR(out_id))
+  if (IS_ERR(sched_id))
   {
     printk("Error creating scheduler thread!\n");
-    return PTR_ERR(out_id);
+    return PTR_ERR(sched_id);
   }
 
   return 0;
@@ -109,11 +125,13 @@ int thread_create(int id)
   int * tmp = (int*)kmalloc(sizeof(int),GFP_USER);
   *tmp = id;
 
+  printk("Creating thread %d\n", *tmp);
+
   out_id[id] = kthread_run(output_thread, (void*)tmp,"out_thread");
-  if (IS_ERR(out_id)) {
+  if (IS_ERR(out_id[id])) {
     printk("Error creating kernel thread!\n");
 
-    return PTR_ERR(out_id);
+    return PTR_ERR(out_id[id]);
   }
 
   return 0;
@@ -126,6 +144,15 @@ void thread_destroy(int id)
 
 void scheduler_destroy()
 {
+  int i = 0;
+  for (i=0; i < thread_num; i++)
+  {
+    turn = i;
+    wake_up_interruptible_all(&threads_waitqueue);
+    kthread_stop(out_id[i]);
+    printk("Thread %d destroyed\n", i);
+  }
+
   kthread_stop(sched_id);
 }
 

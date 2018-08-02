@@ -5,10 +5,12 @@
 #include "ex_thread.h"
 #include "ex_dev.h"
 
-MODULE_AUTHOR("Luca Abeni");
-MODULE_DESCRIPTION("Example with devices and kthreads");
+
+MODULE_AUTHOR("Lorenzo Landolfi");
+MODULE_DESCRIPTION("Simple Round Robin Scheduler");
 MODULE_LICENSE("GPL");
 
+int thread_num = 3;
 module_param(thread_num, int, 0);
 
 static int __init scheduler_init(void)
@@ -50,14 +52,12 @@ static int __init scheduler_init(void)
 
 static void scheduler_cleanup(void)
 {
-  int i;
   scheduler_destroy();
 
-  for (i=0; i < thread_num; i++)
-  {
-    thread_destroy(i);
-  }
+  printk("Scheduler destroyed \n");
+
   my_device_destroy();
+  printk("Decvice destroyed\n");
 }
 
 module_init(scheduler_init);

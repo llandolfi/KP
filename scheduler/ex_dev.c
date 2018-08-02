@@ -12,11 +12,13 @@ static struct miscdevice thread_out_device;
 static int thread_open(struct inode *inode, struct file *file)
 {
   return 0;
+  //TODO: maybe the open can add a thread to the thread list
 }
 
 static int thread_close(struct inode *inode, struct file *file)
 {
   return 0;
+  //close can add a thread to the thread list scheduled by the RR scheduler
 }
 
 ssize_t thread_read(struct file *file, char __user *p, size_t len, loff_t *ppos)

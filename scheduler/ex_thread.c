@@ -28,6 +28,13 @@ static int turn = -1;
 
 static char buff[1024];
 
+struct node {
+    struct task_struct* value;
+    struct list_head kl;
+};
+
+static struct list_head head;
+
 
 static int output_thread(void *arg)
 {
@@ -136,6 +143,28 @@ int thread_create(int id)
 
   return 0;
 }
+
+int thread_create_list(int id)
+{
+  struct node *n;
+  int * tmp = (int*)kmalloc(sizeof(int),GFP_USER);
+  *tmp = id;
+
+  printk("Creating thread %d\n", *tmp);
+
+  n = kmalloc(sizeof(struct node), GFP_KERNEL);
+  n->value = kthread_run(output_thread, (void*)tmp,"out_thread");
+  list_add(&(n->kl), &head);
+
+  if (IS_ERR(n->value)) {
+    printk("Error creating kernel thread!\n");
+
+    return PTR_ERR(n->value);
+  }
+
+  return 0;
+}
+
 
 void thread_destroy(int id)
 {

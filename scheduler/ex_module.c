@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
+#include <linux/list.h>
 
 #include "ex_thread.h"
 #include "ex_dev.h"
@@ -12,6 +13,7 @@ MODULE_LICENSE("GPL");
 
 int thread_num = 3;
 module_param(thread_num, int, 0);
+
 
 static int __init scheduler_init(void)
 {
@@ -49,6 +51,8 @@ static int __init scheduler_init(void)
   
   return 0;
 }
+
+
 
 static void scheduler_cleanup(void)
 {

@@ -11,8 +11,12 @@ static struct miscdevice thread_out_device;
 
 static int thread_open(struct inode *inode, struct file *file)
 {
-  return 0;
   //TODO: maybe the open can add a thread to the thread list
+  int res;
+  thread_num = thread_num + 1;
+  res = thread_create_list(thread_num);
+  
+  return res;
 }
 
 static int thread_close(struct inode *inode, struct file *file)

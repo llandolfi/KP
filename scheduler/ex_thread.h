@@ -9,6 +9,7 @@ int scheduler_create(int thread_num, double period);
 int thread_create(int id);
 int get_data(char *p, int size);
 int thread_create_list(int id);
+void scheduler_destroy_list(void);
 
 extern struct completion available_data;
 extern int thread_num;

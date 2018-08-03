@@ -29,6 +29,7 @@ static int turn = -1;
 static char buff[1024];
 
 struct node {
+    int id;
     struct task_struct* value;
     struct list_head kl;
 };
@@ -154,13 +155,14 @@ int thread_create_list(int id)
 
   n = kmalloc(sizeof(struct node), GFP_KERNEL);
   n->value = kthread_run(output_thread, (void*)tmp,"out_thread");
+  n->id = id;
   list_add(&(n->kl), &head);
 
-  if (IS_ERR(n->value)) {
+  /*if (IS_ERR(n->value)) {
     printk("Error creating kernel thread!\n");
 
     return PTR_ERR(n->value);
-  }
+  }*/
 
   return 0;
 }
@@ -169,6 +171,23 @@ int thread_create_list(int id)
 void thread_destroy(int id)
 {
   kthread_stop(out_id[id]);
+}
+
+
+void scheduler_destroy_list()
+{
+  struct list_head *l, *tmp;
+  struct node *n;
+
+  list_for_each_safe(l, tmp, &head) {
+      n = list_entry(l, struct node, kl);
+
+      kthread_stop(n->value);
+      printk("Thread %d destroyed\n", n->id);
+      
+      list_del(l);
+      kfree(n);
+  }
 }
 
 void scheduler_destroy()

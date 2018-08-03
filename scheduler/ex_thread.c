@@ -74,7 +74,8 @@ static int output_thread(void *arg)
     sprintf(buff, "Thread %d is executing\n", my_id);
     mutex_unlock(&buff_m);
     complete(&available_data);
-    msleep(1000);
+
+    msleep(500);
   }
 
 
@@ -99,7 +100,7 @@ static int scheduler_thread(void* arg)
   {
     turn = (turn + 1) % thread_num;
     wake_up_interruptible_all(&threads_waitqueue);
-    msleep(3000);
+    msleep(2000);
   }
 
   return 0;
@@ -114,6 +115,7 @@ int scheduler_create(int thread_num, double period)
   mutex_init(&buff_m);
   mutex_init(&ready_mutex);
   init_completion(&available_data);
+  INIT_LIST_HEAD(&head);
 
   init_waitqueue_head(&sched_waitqueue);
   init_waitqueue_head(&threads_waitqueue);
@@ -158,11 +160,11 @@ int thread_create_list(int id)
   n->id = id;
   list_add(&(n->kl), &head);
 
-  /*if (IS_ERR(n->value)) {
+  if (IS_ERR(n->value)) {
     printk("Error creating kernel thread!\n");
 
     return PTR_ERR(n->value);
-  }*/
+  }
 
   return 0;
 }
@@ -178,16 +180,51 @@ void scheduler_destroy_list()
 {
   struct list_head *l, *tmp;
   struct node *n;
+  int i = 0;
+  int j = 0;
 
   list_for_each_safe(l, tmp, &head) {
       n = list_entry(l, struct node, kl);
+
+      for (j = 0; j < 3; j++)
+      {
+        turn = j;
+        wake_up_interruptible_all(&threads_waitqueue);
+      }
 
       kthread_stop(n->value);
       printk("Thread %d destroyed\n", n->id);
       
       list_del(l);
       kfree(n);
+
+      i = i + 1;
   }
+
+   kthread_stop(sched_id);
+}
+
+int sched_rm_thread()
+{
+  struct list_head *l, *tmp;
+  struct node *n;
+
+  printk("Removing thread %d\n", thread_num-1);
+
+  list_for_each_safe(l, tmp, &head) {
+      n = list_entry(l, struct node, kl);
+
+      //Should enter the crytical section
+      if (n->id == thread_num-1)
+      {
+        list_del(l);
+        kfree(n);
+        thread_num = thread_num - 1;
+        break;
+      }
+  }
+
+  return 0;
 }
 
 void scheduler_destroy()

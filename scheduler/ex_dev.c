@@ -8,15 +8,12 @@
 #include "ex_dev.h"
 
 static struct miscdevice thread_out_device;
+static struct miscdevice append_device;
+static struct miscdevice remove_device;
 
 static int thread_open(struct inode *inode, struct file *file)
 {
-  //TODO: maybe the open can add a thread to the thread list
-  int res;
-  thread_num = thread_num + 1;
-  res = thread_create_list(thread_num);
-  
-  return res;
+  return 0;
 }
 
 static int thread_close(struct inode *inode, struct file *file)
@@ -34,15 +31,41 @@ ssize_t thread_read(struct file *file, char __user *p, size_t len, loff_t *ppos)
   return res;
 }
 
+ssize_t dummy_read(struct file *file, char __user *p, size_t len, loff_t *ppos)
+{
+  return 0;
+}
+
+static int append_thread(struct inode *inode, struct file* file)
+{
+  int res;
+  thread_num = thread_num + 1;
+  res = thread_create_list(thread_num-1);
+  
+  return res;
+}
+
+static int remove_thread(struct inode *inode, struct file* file)
+{
+  return sched_rm_thread();
+}
+
 
 int my_device_create(void)
-{
-  return misc_register(&thread_out_device);
+{ 
+  int r1,r2,r3;
+  r1 = misc_register(&thread_out_device);
+  r2 = misc_register(&append_device);
+  r3 = misc_register(&remove_device);
+
+  return r1+r2+r3;
 }
 
 void my_device_destroy(void)
 {
   misc_deregister(&thread_out_device);
+  misc_deregister(&append_device);
+  misc_deregister(&remove_device);
 }
 
 static struct file_operations thread_fops = {
@@ -54,4 +77,29 @@ static struct file_operations thread_fops = {
 
 static struct miscdevice thread_out_device = {
   MISC_DYNAMIC_MINOR, "thout", &thread_fops
+};
+
+
+static struct file_operations append_fops = {
+  .owner =        THIS_MODULE,
+  .read =         dummy_read,
+  .open =         append_thread,
+  .release =      thread_close,
+};
+
+
+static struct miscdevice append_device = {
+  MISC_DYNAMIC_MINOR, "thappend", &append_fops
+};
+
+static struct file_operations remove_fops = {
+  .owner =        THIS_MODULE,
+  .read =         dummy_read,
+  .open =         remove_thread,
+  .release =      thread_close,
+};
+
+
+static struct miscdevice remove_device = {
+  MISC_DYNAMIC_MINOR, "thremove", &remove_fops
 };

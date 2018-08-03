@@ -57,8 +57,6 @@ static int __init scheduler_init_list(void)
   int res;
   int i;
 
-  INIT_LIST_HEAD(&head);
-
   res = scheduler_create(thread_num, 1000);
   if (res < 0)
   {
@@ -79,11 +77,6 @@ static int __init scheduler_init_list(void)
 
     scheduler_destroy();
 
-    for (i=0; i < thread_num; i++)
-    {
-      thread_destroy(i);
-    }
-
     return res;
   }
   return 0;
@@ -103,7 +96,7 @@ static void scheduler_cleanup(void)
 
 static void scheduler_cleanup_list(void)
 {
-  scheduler_destroy();
+  scheduler_destroy_list();
 
   printk("Scheduler destroyed \n");
 

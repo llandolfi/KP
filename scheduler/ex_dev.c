@@ -38,11 +38,7 @@ ssize_t dummy_read(struct file *file, char __user *p, size_t len, loff_t *ppos)
 
 static int append_thread(struct inode *inode, struct file* file)
 {
-  int res;
-  thread_num = thread_num + 1;
-  res = thread_create_list(thread_num-1);
-  
-  return res;
+  return sched_append_thread();
 }
 
 static int remove_thread(struct inode *inode, struct file* file)

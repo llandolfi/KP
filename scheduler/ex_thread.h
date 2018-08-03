@@ -11,6 +11,7 @@ int get_data(char *p, int size);
 int thread_create_list(int id);
 void scheduler_destroy_list(void);
 int sched_rm_thread(void);
+int sched_append_thread(void);
 
 extern struct completion available_data;
 extern int thread_num;

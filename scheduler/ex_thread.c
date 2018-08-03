@@ -18,6 +18,7 @@ static struct task_struct **out_id;
 static struct task_struct *sched_id;
 
 static struct mutex ready_mutex;
+static struct mutex list_mutex;
 
 static wait_queue_head_t sched_waitqueue;
 static wait_queue_head_t threads_waitqueue;
@@ -114,6 +115,7 @@ int scheduler_create(int thread_num, double period)
 
   mutex_init(&buff_m);
   mutex_init(&ready_mutex);
+  mutex_init(&list_mutex);
   init_completion(&available_data);
   INIT_LIST_HEAD(&head);
 
@@ -204,10 +206,25 @@ void scheduler_destroy_list()
    kthread_stop(sched_id);
 }
 
+int sched_append_thread()
+{
+
+  mutex_lock(&list_mutex);
+
+  thread_num = thread_num + 1;
+  int res = thread_create_list(thread_num-1);
+
+  mutex_unlock(&list_mutex);
+  
+  return res;
+}
+
 int sched_rm_thread()
 {
   struct list_head *l, *tmp;
   struct node *n;
+
+  mutex_lock(&list_mutex);
 
   printk("Removing thread %d\n", thread_num-1);
 
@@ -223,6 +240,8 @@ int sched_rm_thread()
         break;
       }
   }
+
+  mutex_unlock(&list_mutex);
 
   return 0;
 }

@@ -12,6 +12,7 @@
 #include "ex_thread.h"
 
 static struct mutex buff_m;
+static struct mutex end_mutex;
 struct completion available_data;
 
 static struct task_struct **out_id;
@@ -26,8 +27,12 @@ static wait_queue_head_t threads_waitqueue;
 static int allready = 0;
 static bool sched_ready = false;
 static int turn = -1;
+static bool end = false;
 
 static char buff[1024];
+
+static int RR_period = 2000;
+static int dummy_period = 500;
 
 struct node {
     int id;
@@ -41,6 +46,7 @@ static struct list_head head;
 static int output_thread(void *arg)
 {
 
+  bool tmpend;
   int* my_id_p = (int*)arg;
   int my_id = *my_id_p;
 
@@ -51,32 +57,40 @@ static int output_thread(void *arg)
   if (allready == thread_num)
   {
     printk("I am thread %d and I am the last thread, I am waking up all!\n", my_id);
-    wake_up_interruptible_all(&threads_waitqueue);
+    wake_up_all(&threads_waitqueue);
   }
   else
   {
     printk("I am thread %d... I wait for all to be ready...\n", my_id);
-    wait_event_interruptible(threads_waitqueue, (allready == thread_num));
+    wait_event(threads_waitqueue, (allready == thread_num));
   }
 
   printk("Thread %d waiting for the scheduler to be ready...\n", my_id);
-  wait_event_interruptible(sched_waitqueue, (sched_ready == true));
+  wait_event(sched_waitqueue, (sched_ready == true));
   printk("Thread %d starting main body\n", my_id);
 
   while (!kthread_should_stop()) {
-    wait_event_interruptible(threads_waitqueue, (turn == my_id));
 
-    #ifdef MYDEBUG
-      printk("Thread %d is executing\n", my_id);
-    #endif
+    mutex_lock(&end_mutex);
+    tmpend = end;
+    mutex_unlock(&end_mutex);
 
+    if (!tmpend)
+    {
+      wait_event(threads_waitqueue, (turn == my_id));
+    
+      #ifdef MYDEBUG
+        printk("Thread %d is executing\n", my_id);
+      #endif
 
-    mutex_lock(&buff_m);
-    sprintf(buff, "Thread %d is executing\n", my_id);
-    mutex_unlock(&buff_m);
-    complete(&available_data);
+      mutex_lock(&buff_m);
+      sprintf(buff, "Thread %d is executing\n", my_id);
+      mutex_unlock(&buff_m);
+      complete(&available_data);
 
-    msleep(500);
+      msleep(dummy_period);
+    }
+
   }
 
 
@@ -86,7 +100,7 @@ static int output_thread(void *arg)
 static int scheduler_thread(void* arg)
 {
   printk("Scheduler started! Waiting for the other threads\n");
-  wait_event_interruptible(threads_waitqueue, (allready == thread_num));
+  wait_event(threads_waitqueue, (allready == thread_num));
 
   printk("waking up all the threads?\n");
 
@@ -94,14 +108,16 @@ static int scheduler_thread(void* arg)
   sched_ready = true;
   mutex_unlock(&ready_mutex);
 
-  wake_up_interruptible_all(&sched_waitqueue);
+  wake_up_all(&sched_waitqueue);
 
   printk("Scheduler starting main body\n");
   while(!kthread_should_stop())
-  {
+  { 
+    mutex_lock(&ready_mutex);
     turn = (turn + 1) % thread_num;
-    wake_up_interruptible_all(&threads_waitqueue);
-    msleep(2000);
+    mutex_unlock(&ready_mutex);
+    wake_up_all(&threads_waitqueue);
+    msleep(RR_period);
   }
 
   return 0;
@@ -116,6 +132,7 @@ int scheduler_create(int thread_num, double period)
   mutex_init(&buff_m);
   mutex_init(&ready_mutex);
   mutex_init(&list_mutex);
+  mutex_init(&end_mutex);
   init_completion(&available_data);
   INIT_LIST_HEAD(&head);
 
@@ -185,13 +202,17 @@ void scheduler_destroy_list()
   int i = 0;
   int j = 0;
 
+  mutex_lock(&end_mutex);
+  end = true;
+  mutex_unlock(&end_mutex);
+
   list_for_each_safe(l, tmp, &head) {
       n = list_entry(l, struct node, kl);
 
-      for (j = 0; j < 3; j++)
+      for (j = 0; j < thread_num; j++)
       {
         turn = j;
-        wake_up_interruptible_all(&threads_waitqueue);
+        wake_up_all(&threads_waitqueue);
       }
 
       kthread_stop(n->value);
@@ -208,11 +229,12 @@ void scheduler_destroy_list()
 
 int sched_append_thread()
 {
+  int res;
 
   mutex_lock(&list_mutex);
 
   thread_num = thread_num + 1;
-  int res = thread_create_list(thread_num-1);
+  res = thread_create_list(thread_num-1);
 
   mutex_unlock(&list_mutex);
   
@@ -252,7 +274,7 @@ void scheduler_destroy()
   for (i=0; i < thread_num; i++)
   {
     turn = i;
-    wake_up_interruptible_all(&threads_waitqueue);
+    wake_up_all(&threads_waitqueue);
     kthread_stop(out_id[i]);
     printk("Thread %d destroyed\n", i);
   }

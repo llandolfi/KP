@@ -77,7 +77,7 @@ static int output_thread(void *arg)
 
     if (!tmpend)
     {
-      wait_event(threads_waitqueue, (turn == my_id));
+      wait_event(threads_waitqueue, (turn == my_id || tmpend));
     
       #ifdef MYDEBUG
         printk("Thread %d is executing\n", my_id);
@@ -92,7 +92,6 @@ static int output_thread(void *arg)
     }
 
   }
-
 
   return 0;
 }

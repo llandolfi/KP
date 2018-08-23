@@ -46,7 +46,6 @@ static struct list_head head;
 static int output_thread(void *arg)
 {
 
-  bool tmpend;
   int* my_id_p = (int*)arg;
   int my_id = *my_id_p;
 
@@ -71,13 +70,7 @@ static int output_thread(void *arg)
 
   while (!kthread_should_stop()) {
 
-    mutex_lock(&end_mutex);
-    tmpend = end;
-    mutex_unlock(&end_mutex);
-
-    if (!tmpend)
-    {
-      wait_event(threads_waitqueue, (turn == my_id || tmpend));
+      wait_event(threads_waitqueue, ((turn == my_id) || end));
     
       #ifdef MYDEBUG
         printk("Thread %d is executing\n", my_id);
@@ -89,7 +82,6 @@ static int output_thread(void *arg)
       complete(&available_data);
 
       msleep(dummy_period);
-    }
 
   }
 
@@ -112,10 +104,15 @@ static int scheduler_thread(void* arg)
   printk("Scheduler starting main body\n");
   while(!kthread_should_stop())
   { 
-    mutex_lock(&ready_mutex);
-    turn = (turn + 1) % thread_num;
-    mutex_unlock(&ready_mutex);
-    wake_up_all(&threads_waitqueue);
+    mutex_lock(&list_mutex);
+    if (thread_num > 0)
+    {
+      mutex_lock(&ready_mutex);
+      turn = (turn + 1) % thread_num;
+      mutex_unlock(&ready_mutex);
+      wake_up_all(&threads_waitqueue);
+    }
+    mutex_unlock(&list_mutex);
     msleep(RR_period);
   }
 
@@ -198,32 +195,24 @@ void scheduler_destroy_list()
 {
   struct list_head *l, *tmp;
   struct node *n;
-  int i = 0;
-  int j = 0;
 
-  mutex_lock(&end_mutex);
   end = true;
-  mutex_unlock(&end_mutex);
+
+  mutex_lock(&list_mutex);
 
   list_for_each_safe(l, tmp, &head) {
       n = list_entry(l, struct node, kl);
-
-      for (j = 0; j < thread_num; j++)
-      {
-        turn = j;
-        wake_up_all(&threads_waitqueue);
-      }
 
       kthread_stop(n->value);
       printk("Thread %d destroyed\n", n->id);
       
       list_del(l);
       kfree(n);
-
-      i = i + 1;
   }
 
-   kthread_stop(sched_id);
+  mutex_unlock(&list_mutex);
+
+  kthread_stop(sched_id);
 }
 
 int sched_append_thread()
@@ -247,19 +236,28 @@ int sched_rm_thread()
 
   mutex_lock(&list_mutex);
 
-  printk("Removing thread %d\n", thread_num-1);
+  if (thread_num == 0)
+  {
+    printk("There are no threads to be removed.\n Sorry \n");
+  }
+  else
+  {
+    printk("Removing thread %d\n", thread_num-1);
 
-  list_for_each_safe(l, tmp, &head) {
-      n = list_entry(l, struct node, kl);
+    list_for_each_safe(l, tmp, &head) {
+        n = list_entry(l, struct node, kl);
 
-      //Should enter the crytical section
-      if (n->id == thread_num-1)
-      {
-        list_del(l);
-        kfree(n);
-        thread_num = thread_num - 1;
-        break;
-      }
+        //Should enter the crytical section
+        if (n->id == thread_num-1)
+        { 
+          kthread_stop(n->value);
+          list_del(l);
+          kfree(n);
+          thread_num = thread_num - 1;
+          allready = allready -1;
+          break;
+        }
+    }
   }
 
   mutex_unlock(&list_mutex);

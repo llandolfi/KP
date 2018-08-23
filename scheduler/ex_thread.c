@@ -71,6 +71,9 @@ static int output_thread(void *arg)
   while (!kthread_should_stop()) {
 
       wait_event(threads_waitqueue, ((turn == my_id) || end));
+
+      if (!end)
+      {
     
       #ifdef MYDEBUG
         printk("Thread %d is executing\n", my_id);
@@ -83,6 +86,7 @@ static int output_thread(void *arg)
 
       msleep(dummy_period);
 
+      }
   }
 
   return 0;
@@ -102,17 +106,16 @@ static int scheduler_thread(void* arg)
   wake_up_all(&sched_waitqueue);
 
   printk("Scheduler starting main body\n");
+
   while(!kthread_should_stop())
   { 
     mutex_lock(&list_mutex);
     if (thread_num > 0)
     {
-      mutex_lock(&ready_mutex);
       turn = (turn + 1) % thread_num;
-      mutex_unlock(&ready_mutex);
+      mutex_unlock(&list_mutex);
       wake_up_all(&threads_waitqueue);
     }
-    mutex_unlock(&list_mutex);
     msleep(RR_period);
   }
 
@@ -195,6 +198,7 @@ void scheduler_destroy_list()
 {
   struct list_head *l, *tmp;
   struct node *n;
+  int mtmp;
 
   end = true;
 
@@ -203,11 +207,16 @@ void scheduler_destroy_list()
   list_for_each_safe(l, tmp, &head) {
       n = list_entry(l, struct node, kl);
 
+      mtmp = turn;
+      turn = n->id;
+     // wake_up_all(&threads_waitqueue);
       kthread_stop(n->value);
       printk("Thread %d destroyed\n", n->id);
-      
       list_del(l);
       kfree(n);
+      thread_num = thread_num - 1;
+      allready = allready -1;
+      turn = mtmp;
   }
 
   mutex_unlock(&list_mutex);
@@ -233,6 +242,7 @@ int sched_rm_thread()
 {
   struct list_head *l, *tmp;
   struct node *n;
+  int mtmp;
 
   mutex_lock(&list_mutex);
 
@@ -250,11 +260,15 @@ int sched_rm_thread()
         //Should enter the crytical section
         if (n->id == thread_num-1)
         { 
+          mtmp = turn;
+          turn = n->id;
+          //wake_up_all(&threads_waitqueue);
           kthread_stop(n->value);
           list_del(l);
           kfree(n);
           thread_num = thread_num - 1;
           allready = allready -1;
+          turn = mtmp;
           break;
         }
     }
